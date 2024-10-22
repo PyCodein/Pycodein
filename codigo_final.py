@@ -1,7 +1,6 @@
-
-
 import sqlite3
 from abc import ABC, abstractmethod
+import re
 
 conn = sqlite3.connect('hotel.db')
 cursor = conn.cursor()
@@ -158,27 +157,42 @@ class Reserva:
     def __str__(self):
         return f'Reserva de {self.huesped} en {self.hotel.nombre}, Habitación {self.habitacion.numero}, desde {self.fecha_entrada} hasta {self.fecha_salida}'
 
-def menu_principal():
-    hoteles = obtener_hoteles()
+def ingresar_fecha(mensaje):
     while True:
-        print("\n--- Menú Principal ---")
-        print("1. Crear hotel")
-        print("2. Listar hoteles")
-        print("3. Seleccionar hotel")
-        print("4. Salir")
-        opcion = input("Seleccione una opción: ")
-
-        if opcion == "1":
-            crear_hotel(hoteles)
-        elif opcion == "2":
-            listar_hoteles(hoteles)
-        elif opcion == "3":
-            seleccionar_hotel(hoteles)
-        elif opcion == "4":
-            break
+        fecha = input(mensaje)
+        if re.match(r'^\d{2}-\d{2}-\d{4}$', fecha):
+            return fecha
         else:
-            print("Opción no válida.")
+            print("Formato de fecha no válido. Por favor, ingrese la fecha en el formato DD-MM-YYYY.")
 
+def crear_reserva(hotel):
+    huesped = input("Ingrese el nombre del huésped: ")
+
+    # Usamos la función ingresar_fecha para validar las fechas
+    fecha_entrada = ingresar_fecha("Ingrese la fecha de entrada (DD-MM-YYYY): ")
+    fecha_salida = ingresar_fecha("Ingrese la fecha de salida (DD-MM-YYYY): ")
+
+    hotel.listar_habitaciones()
+    numero_habitacion = int(input("Seleccione el número de habitación para la reserva: "))
+    
+    cursor.execute('SELECT id, numero, tipo, precio FROM habitacion WHERE numero = ? AND hotel_id = ?', (numero_habitacion, hotel.id))
+    habitacion_db = cursor.fetchone()
+
+    if habitacion_db:
+        habitacion = Habitacion(habitacion_db[1], habitacion_db[2], habitacion_db[3])
+        reserva = Reserva(hotel, habitacion, huesped, fecha_entrada, fecha_salida)
+        reserva.guardar_reserva()
+        print("Reserva creada con éxito.")
+    else:
+        print("Habitación no encontrada.")
+
+def obtener_hoteles():
+    cursor.execute('SELECT id, nombre, direccion, calificacion FROM hotel')
+    hoteles_db = cursor.fetchall()
+    hoteles = [Hotel(hotel[0], hotel[1], hotel[2], hotel[3]) for hotel in hoteles_db]
+    return hoteles
+
+# Función para crear un hotel
 def crear_hotel(hoteles):
     nombre = input("Ingrese el nombre del hotel: ")
     direccion = input("Ingrese la dirección: ")
@@ -191,6 +205,7 @@ def crear_hotel(hoteles):
     hoteles.append(Hotel(cursor.lastrowid, nombre, direccion, calificacion))
     print("Hotel creado con éxito.")
 
+# Función para listar los hoteles disponibles
 def listar_hoteles(hoteles):
     if not hoteles:
         print("No hay hoteles disponibles.")
@@ -199,6 +214,7 @@ def listar_hoteles(hoteles):
     for idx, hotel in enumerate(hoteles):
         print(f"{idx + 1}. {hotel.nombre} - {hotel.direccion} - Calificación: {hotel.calificacion}")
 
+# Función para seleccionar un hotel y acceder a su menú
 def seleccionar_hotel(hoteles):
     if not hoteles:
         print("No hay hoteles disponibles.")
@@ -212,6 +228,7 @@ def seleccionar_hotel(hoteles):
     else:
         print("Selección no válida.")
 
+# Menú del hotel
 def menu_hotel(hotel):
     while True:
         print(f"\n--- Menú de {hotel.nombre} ---")
@@ -238,6 +255,7 @@ def menu_hotel(hotel):
         else:
             print("Opción no válida.")
 
+# Función para agregar una habitación
 def agregar_habitacion(hotel):
     numero = int(input("Ingrese el número de habitación: "))
     tipo = input("Ingrese el tipo de habitación: ")
@@ -246,43 +264,51 @@ def agregar_habitacion(hotel):
     hotel.agregar_habitacion(habitacion)
     print("Habitación agregada con éxito.")
 
+# Función para actualizar los datos del hotel
 def actualizar_hotel(hotel):
-    nuevo_nombre = input(f"Ingrese nuevo nombre (Actual: {hotel.nombre}) o deje en blanco para mantener: ")
-    nueva_direccion = input(f"Ingrese nueva dirección (Actual: {hotel.direccion}) o deje en blanco para mantener: ")
-    nueva_calificacion = input(f"Ingrese nueva calificación (Actual: {hotel.calificacion}) o deje en blanco para mantener: ")
+    nuevo_nombre = input("Ingrese el nuevo nombre del hotel (o presione Enter para mantenerlo): ")
+    nueva_direccion = input("Ingrese la nueva dirección (o presione Enter para mantenerla): ")
+    nueva_calificacion = input("Ingrese la nueva calificación (o presione Enter para mantenerla): ")
 
-    hotel.actualizar_datos(nuevo_nombre or None, nueva_direccion or None, float(nueva_calificacion) if nueva_calificacion else None)
+    if nueva_calificacion:
+        nueva_calificacion = float(nueva_calificacion)
+    else:
+        nueva_calificacion = None
+
+    hotel.actualizar_datos(nuevo_nombre if nuevo_nombre else None, nueva_direccion if nueva_direccion else None, nueva_calificacion)
+
     print("Datos del hotel actualizados con éxito.")
 
+# Función para eliminar una habitación
 def eliminar_habitacion(hotel):
-    numero_habitacion = int(input("Ingrese el número de habitación a eliminar: "))
+    numero_habitacion = int(input("Ingrese el número de la habitación a eliminar: "))
     hotel.eliminar_habitacion(numero_habitacion)
     print("Habitación eliminada con éxito.")
 
-def crear_reserva(hotel):
-    huesped = input("Ingrese el nombre del huésped: ")
-    fecha_entrada = input("Ingrese la fecha de entrada (YYYY-MM-DD): ")
-    fecha_salida = input("Ingrese la fecha de salida (YYYY-MM-DD): ")
+# Menú principal
+def menu_principal():
+    hoteles = obtener_hoteles()
+    while True:
+        print("\n--- Menú Principal ---")
+        print("1. Crear hotel")
+        print("2. Listar hoteles")
+        print("3. Seleccionar hotel")
+        print("4. Salir")
+        opcion = input("Seleccione una opción: ")
 
-    hotel.listar_habitaciones()
-    numero_habitacion = int(input("Seleccione el número de habitación para la reserva: "))
-    
-    cursor.execute('SELECT id, numero, tipo, precio FROM habitacion WHERE numero = ? AND hotel_id = ?', (numero_habitacion, hotel.id))
-    habitacion_db = cursor.fetchone()
-
-    if habitacion_db:
-        habitacion = Habitacion(habitacion_db[1], habitacion_db[2], habitacion_db[3])
-        reserva = Reserva(hotel, habitacion, huesped, fecha_entrada, fecha_salida)
-        reserva.guardar_reserva()
-        print("Reserva creada con éxito.")
-    else:
-        print("Habitación no encontrada.")
-
-def obtener_hoteles():
-    cursor.execute('SELECT id, nombre, direccion, calificacion FROM hotel')
-    hoteles_db = cursor.fetchall()
-    hoteles = [Hotel(hotel[0], hotel[1], hotel[2], hotel[3]) for hotel in hoteles_db]
-    return hoteles
+        if opcion == "1":
+            crear_hotel(hoteles)
+        elif opcion == "2":
+            listar_hoteles(hoteles)
+        elif opcion == "3":
+            seleccionar_hotel(hoteles)
+        elif opcion == "4":
+            break
+        else:
+            print("Opción no válida.")
 
 if __name__ == "__main__":
-    menu_principal()
+    try:
+        menu_principal()
+    finally:
+        conn.close()
